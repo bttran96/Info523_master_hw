@@ -3,7 +3,7 @@
 # install.packages("ggplot2", "hexbin")
 library(ggplot2)
 # library(hexbin)
-
+########################################### Plot a lot #######################################################
 plot(iris$Sepal.Width, iris$Sepal.Length)
 
 qplot(Sepal.Width, Sepal.Length, data = iris)
