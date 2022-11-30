@@ -1,0 +1,76 @@
+---
+title: "Anomaly Detection with Isolation Forest"
+author: "Binh Tran"
+date: "11/29/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+### Links to dataset
+https://www.kaggle.com/datasets/nphantawee/pump-sensor-data
+Start by loading the necessary packages
+
+```{r}
+library(ggplot2)
+library(isotree)
+library(lubridate)
+```
+Load csv files
+```{r}
+df <- read.csv("sensor.csv")
+```
+
+### Pre-processing steps
+
+```{r}
+### Clean up
+#take a general look of the data
+str(df) # data structure
+lapply(df, function(x) length(unique(x))) #look at number of unique values in each column
+lapply(df, function(x) table(is.na(x))) # look at number of missing values in each column
+
+# remove redundant column and rows
+df <- df[,-c(1,18)] # column 15 is all NA
+table(duplicated(df)) # check for duplicated rows
+
+# impute missing cells with column mean
+for (i in 1:ncol(df)){
+  df[,i][is.na(df[,i])] <- mean(df[,i], na.rm = T)
+}
+
+### Plot some sensor
+df$timestamp <- ymd_hms(df$timestamp)
+dfBroken <- df[df$machine_status == "BROKEN",]
+dfRecover <- df[df$machine_status == "RECOVERING",]
+ggplot(df, aes(x = timestamp, y = sensor_00)) +
+  geom_line( ) +
+  geom_point(data = dfRecover, aes(x = timestamp, y = sensor_00), color = "blue") +
+  geom_point(data = dfBroken, aes(x = timestamp, y = sensor_00), color = "red")
+```
+
+
+### Modeling step
+```{r}
+set.seed(123)
+model <- isolation.forest(df[,2:52], ntrees = 1000, sample_size = 256, 
+                          ndim = 1, missing_action = "fail", nthreads = 1, 
+                          prob_pick_pooled_gain = 0.8, ntry = 6, max_depth = NULL)
+pred <- predict(model, df[,2:52])
+hist(pred, main = "Histogram of Prediction Score")
+df$anomaly <- pred > 0.50
+table(df$anomaly, df$machine_status)
+ggplot(df, aes(x = timestamp, y = sensor_00)) +
+  geom_line() + 
+  geom_point(data = df[df$anomaly == T,], aes(x = timestamp, y = sensor_00), color = "blue") +
+  geom_point(data = df[df$machine_status == "BROKEN",], aes(x = timestamp, y = sensor_00),  color = "red")
+```
